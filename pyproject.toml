@@ -1,0 +1,20 @@
+[project]
+name = "gcodscript-ai"
+version = "1.0.0"
+description = "Chatbot em português com a Gemini API"
+requires-python = ">=3.10"
+dependencies = [
+    "flet>=0.28.3,<1.0.0",
+]
+
+[tool.flet]
+org = "com.gcodscript"
+product = "Gcodscript AI"
+company = "Gcodscript"
+copyright = "Copyright 2026 Gcodscript"
+
+[tool.flet.app]
+path = "."
+
+[tool.flet.android]
+min_sdk_version = 23
