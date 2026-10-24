@@ -5,7 +5,7 @@ version = "1.0.0"
 description = "Chatbot em português com a Gemini API"
 requires-python = ">=3.12,<3.13"
 dependencies = [
-    "flet[all]>=1.0.1,<2.0.0",
+    "flet==1.0.5",
 ]
 
 [tool.flet]
