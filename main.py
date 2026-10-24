@@ -1,9 +1,14 @@
 
 import flet as ft
-import requests
 import json
 import os
+import urllib.request
+import urllib.error
 from pathlib import Path
+
+# =========================
+# CONFIGURAÇÃO DO APLICATIVO
+# =========================
 
 APP_DIR = Path.home() / ".gcodscript_ai"
 APP_DIR.mkdir(parents=True, exist_ok=True)
@@ -11,22 +16,17 @@ APP_DIR.mkdir(parents=True, exist_ok=True)
 SETTINGS_FILE = APP_DIR / "settings.json"
 HISTORY_FILE = APP_DIR / "history.json"
 
-# Modelos de texto disponíveis na API Gemini.
 GEMINI_MODELS = {
-    "Gemini 3.8 Flash — recomendado": "gemini-3.8-flash",
-    "Gemini 3.6 Flash": "gemini-3.6-flash",
-    "Gemini 3.5 Flash-Lite — econômico": "gemini-3.5-flash-lite",
-    "Gemini 3.1 Flash-Lite": "gemini-3.1-flash-lite",
-    "Gemini 3 Flash — prévia": "gemini-3-flash-preview",
-    "Gemini 3.1 Pro — prévia": "gemini-3.1-pro-preview",
     "Gemini 2.5 Flash": "gemini-2.5-flash",
     "Gemini 2.5 Flash-Lite": "gemini-2.5-flash-lite",
     "Gemini 2.5 Pro": "gemini-2.5-pro",
+    "Gemini 3 Flash Preview": "gemini-3-flash-preview",
+    "Gemini 3.1 Pro Preview": "gemini-3.1-pro-preview",
 }
 
 DEFAULT_SETTINGS = {
     "api_key": "",
-    "model": "gemini-3.8-flash",
+    "model": "gemini-2.5-flash",
     "mode": "Online",
     "local_url": "http://127.0.0.1:8080/v1/chat/completions",
     "local_model": "local-model",
@@ -35,15 +35,15 @@ DEFAULT_SETTINGS = {
 
 def load_json(path, default):
     try:
-        with open(path, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except (OSError, json.JSONDecodeError):
+        with open(path, "r", encoding="utf-8") as file:
+            return json.load(file)
+    except (OSError, ValueError):
         return default.copy() if isinstance(default, dict) else default
 
 
 def save_json(path, data):
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
+    with open(path, "w", encoding="utf-8") as file:
+        json.dump(data, file, ensure_ascii=False, indent=2)
 
 
 settings = load_json(SETTINGS_FILE, DEFAULT_SETTINGS)
@@ -53,8 +53,49 @@ if not isinstance(history, list):
     history = []
 
 if settings.get("model") not in GEMINI_MODELS.values():
-    settings["model"] = "gemini-3.8-flash"
+    settings["model"] = "gemini-2.5-flash"
 
+
+# =========================
+# REQUISIÇÕES SEM REQUESTS
+# =========================
+
+def http_post(url, payload, headers=None, timeout=120):
+    body = json.dumps(payload).encode("utf-8")
+
+    request_headers = {
+        "Content-Type": "application/json",
+    }
+
+    if headers:
+        request_headers.update(headers)
+
+    request = urllib.request.Request(
+        url,
+        data=body,
+        headers=request_headers,
+        method="POST",
+    )
+
+    try:
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            return json.loads(response.read().decode("utf-8"))
+
+    except urllib.error.HTTPError as error:
+        details = error.read().decode("utf-8", errors="replace")
+        raise RuntimeError(
+            f"Erro HTTP {error.code}: {details[:1500]}"
+        ) from error
+
+    except urllib.error.URLError as error:
+        raise RuntimeError(
+            f"Não foi possível conectar: {error.reason}"
+        ) from error
+
+
+# =========================
+# APLICATIVO
+# =========================
 
 def main(page: ft.Page):
     page.title = "Gcodscript AI"
@@ -65,7 +106,7 @@ def main(page: ft.Page):
     if not history:
         history.append({
             "title": "Nova conversa",
-            "messages": []
+            "messages": [],
         })
 
     current_chat = len(history) - 1
@@ -79,14 +120,14 @@ def main(page: ft.Page):
 
     model_dropdown = ft.Dropdown(
         label="Modelo Gemini",
-        value=settings.get("model", "gemini-3.8-flash"),
+        value=settings.get("model", "gemini-2.5-flash"),
         options=[
             ft.dropdown.Option(key=model_id, text=label)
             for label, model_id in GEMINI_MODELS.items()
         ],
     )
 
-    mode = ft.Dropdown(
+    mode_dropdown = ft.Dropdown(
         label="Modo de funcionamento",
         value=settings.get("mode", "Online"),
         options=[
@@ -97,7 +138,7 @@ def main(page: ft.Page):
 
     local_url = ft.TextField(
         label="URL do servidor local",
-        value=settings.get("local_url", ""),
+        value=settings.get("local_url", DEFAULT_SETTINGS["local_url"]),
     )
 
     local_model = ft.TextField(
@@ -127,24 +168,24 @@ def main(page: ft.Page):
 
     def add_message(role, content):
         is_ai = role == "assistant"
-        label = "Gcodscript AI" if is_ai else "Você"
-        color = "#202633" if is_ai else "#253B56"
 
         chat_column.controls.append(
             ft.Container(
                 content=ft.Column(
                     [
-                        ft.Text(label, weight=ft.FontWeight.BOLD),
+                        ft.Text(
+                            "Gcodscript AI" if is_ai else "Você",
+                            weight=ft.FontWeight.BOLD,
+                        ),
                         ft.Text(content, selectable=True),
                     ],
                     spacing=5,
                 ),
-                bgcolor=color,
+                bgcolor="#202633" if is_ai else "#253B56",
                 padding=12,
                 border_radius=12,
             )
         )
-        page.update()
 
     def redraw_chat():
         chat_column.controls.clear()
@@ -159,7 +200,7 @@ def main(page: ft.Page):
 
         history.append({
             "title": "Nova conversa",
-            "messages": []
+            "messages": [],
         })
 
         current_chat = len(history) - 1
@@ -182,9 +223,9 @@ def main(page: ft.Page):
     def save_settings(e=None):
         settings["api_key"] = (api_key.value or "").strip()
         settings["model"] = (
-            model_dropdown.value or "gemini-3.8-flash"
+            model_dropdown.value or "gemini-2.5-flash"
         )
-        settings["mode"] = mode.value or "Online"
+        settings["mode"] = mode_dropdown.value or "Online"
         settings["local_url"] = (local_url.value or "").strip()
         settings["local_model"] = (
             (local_model.value or "").strip() or "local-model"
@@ -204,13 +245,13 @@ def main(page: ft.Page):
 
         history[current_chat]["messages"].append({
             "role": "user",
-            "content": prompt
+            "content": prompt,
         })
-
-        add_message("user", prompt)
 
         if history[current_chat]["title"] == "Nova conversa":
             history[current_chat]["title"] = prompt[:35]
+
+        add_message("user", prompt)
 
         status.value = "A IA está respondendo..."
         send_button.disabled = True
@@ -218,10 +259,10 @@ def main(page: ft.Page):
 
         try:
             if settings.get("mode") == "Local":
-                # Requer um servidor local compatível com a API OpenAI.
-                response = requests.post(
+                # Precisa de um servidor local compatível com OpenAI API.
+                result = http_post(
                     settings["local_url"],
-                    json={
+                    {
                         "model": settings["local_model"],
                         "messages": history[current_chat]["messages"],
                         "temperature": 0.7,
@@ -229,24 +270,24 @@ def main(page: ft.Page):
                     timeout=180,
                 )
 
-                response.raise_for_status()
-                data = response.json()
-                answer = data["choices"][0]["message"]["content"]
+                answer = result["choices"][0]["message"]["content"]
 
             else:
                 key = settings.get("api_key", "").strip()
-                model_name = settings.get(
-                    "model", "gemini-3.8-flash"
-                )
 
                 if not key:
                     raise ValueError(
-                        "Adicione sua chave da API Gemini nas configurações."
+                        "Abra Config e informe sua chave da API Gemini."
                     )
+
+                model_name = settings.get(
+                    "model", "gemini-2.5-flash"
+                )
 
                 url = (
                     "https://generativelanguage.googleapis.com/"
                     f"v1beta/models/{model_name}:generateContent"
+                    f"?key={key}"
                 )
 
                 contents = []
@@ -260,13 +301,12 @@ def main(page: ft.Page):
 
                     contents.append({
                         "role": role,
-                        "parts": [{"text": message["content"]}]
+                        "parts": [{"text": message["content"]}],
                     })
 
-                response = requests.post(
+                result = http_post(
                     url,
-                    params={"key": key},
-                    json={
+                    {
                         "contents": contents,
                         "generationConfig": {
                             "temperature": 0.7,
@@ -276,28 +316,16 @@ def main(page: ft.Page):
                     timeout=120,
                 )
 
-                if not response.ok:
-                    try:
-                        details = response.json().get("error", {}).get(
-                            "message", response.text
-                        )
-                    except ValueError:
-                        details = response.text
-
-                    raise RuntimeError(
-                        f"API Gemini ({response.status_code}): {details}"
-                    )
-
-                data = response.json()
-                candidates = data.get("candidates", [])
+                candidates = result.get("candidates", [])
 
                 if not candidates:
                     raise RuntimeError(
-                        "A API não retornou uma resposta. "
-                        "Verifique o acesso ao modelo."
+                        "A API não retornou resposta. "
+                        "Verifique o modelo e as permissões da sua chave."
                     )
 
                 parts = candidates[0].get("content", {}).get("parts", [])
+
                 answer = "\n".join(
                     part["text"]
                     for part in parts
@@ -312,7 +340,7 @@ def main(page: ft.Page):
 
         history[current_chat]["messages"].append({
             "role": "assistant",
-            "content": answer
+            "content": answer,
         })
 
         add_message("assistant", answer)
@@ -349,6 +377,180 @@ def main(page: ft.Page):
                         on_click=clear_chat,
                     ),
                 ]
+            ),
+            ft.Divider(),
+            chat_column,
+            ft.Row([prompt_field, send_button]),
+            status,
+        ],
+        expand=True,
+    )
+
+    # =========================
+    # CANVAS DE CÓDIGO
+    # =========================
+
+    filename_field = ft.TextField(
+        label="Nome do arquivo",
+        value="script.py",
+    )
+
+    canvas_text = ft.TextField(
+        label="Editor de código",
+        multiline=True,
+        min_lines=15,
+        max_lines=30,
+        expand=True,
+        text_size=13,
+    )
+
+    def save_code(e=None):
+        name = os.path.basename(
+            (filename_field.value or "script.py").strip()
+        ) or "script.py"
+
+        destination = APP_DIR / name
+
+        destination.write_text(
+            canvas_text.value or "",
+            encoding="utf-8",
+        )
+
+        status.value = f"Arquivo salvo em: {destination}"
+        page.update()
+
+    def analyze_code(e=None):
+        code = canvas_text.value or ""
+
+        if not code.strip():
+            status.value = "Digite ou cole algum código primeiro."
+            page.update()
+            return
+
+        prompt_field.value = (
+            "Analise este código, identifique erros e sugira melhorias:\n\n"
+            + code
+        )
+
+        page.go("/chat")
+
+    canvas_view = ft.Column(
+        [
+            ft.Text(
+                "Canvas de código",
+                size=22,
+                weight=ft.FontWeight.BOLD,
+            ),
+            filename_field,
+            canvas_text,
+            ft.Row(
+                [
+                    ft.ElevatedButton(
+                        "Salvar arquivo",
+                        icon=ft.Icons.SAVE,
+                        on_click=save_code,
+                    ),
+                    ft.ElevatedButton(
+                        "Analisar com IA",
+                        icon=ft.Icons.CODE,
+                        on_click=analyze_code,
+                    ),
+                ],
+                wrap=True,
+            ),
+        ],
+        expand=True,
+    )
+
+    # =========================
+    # CONFIGURAÇÕES
+    # =========================
+
+    settings_view = ft.Column(
+        [
+            ft.Text(
+                "Configurações",
+                size=22,
+                weight=ft.FontWeight.BOLD,
+            ),
+            api_key,
+            model_dropdown,
+            ft.Text(
+                "A disponibilidade dos modelos depende da API Gemini "
+                "e das permissões da sua chave."
+            ),
+            mode_dropdown,
+            local_url,
+            local_model,
+            ft.Text(
+                "O modo Local exige um servidor de IA local ativo. "
+                "Ele não instala nem baixa modelos automaticamente."
+            ),
+            ft.ElevatedButton(
+                "Salvar configurações",
+                icon=ft.Icons.SAVE,
+                on_click=save_settings,
+            ),
+            ft.Text(
+                f"Pasta de dados: {APP_DIR}",
+                selectable=True,
+                size=12,
+            ),
+        ],
+        scroll=ft.ScrollMode.AUTO,
+        expand=True,
+    )
+
+    def route_change(e):
+        page.views.clear()
+        route = page.route or "/chat"
+
+        if route == "/canvas":
+            content = canvas_view
+        elif route == "/settings":
+            content = settings_view
+        else:
+            content = chat_view
+
+        page.views.append(
+            ft.View(
+                route=route,
+                controls=[
+                    content,
+                    ft.Row(
+                        [
+                            ft.TextButton(
+                                "Chat",
+                                icon=ft.Icons.CHAT,
+                                on_click=lambda _: page.go("/chat"),
+                            ),
+                            ft.TextButton(
+                                "Canvas",
+                                icon=ft.Icons.CODE,
+                                on_click=lambda _: page.go("/canvas"),
+                            ),
+                            ft.TextButton(
+                                "Config",
+                                icon=ft.Icons.SETTINGS,
+                                on_click=lambda _: page.go("/settings"),
+                            ),
+                        ],
+                        alignment=ft.MainAxisAlignment.SPACE_AROUND,
+                    ),
+                ],
+                padding=12,
+            )
+        )
+
+        page.update()
+
+    page.on_route_change = route_change
+    page.go("/chat")
+    redraw_chat()
+
+
+ft.app(target=main)
+          ]
             ),
             ft.Divider(),
             chat_column,
