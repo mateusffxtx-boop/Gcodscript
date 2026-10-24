@@ -18,4 +18,4 @@ copyright = "Copyright 2026 Gcodscript"
 path = "."
 
 [tool.flet.android]
-min_sdk_version = 23
+min_sdk_version = 24
