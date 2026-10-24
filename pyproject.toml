@@ -1,10 +1,11 @@
+
 [project]
 name = "gcodscript-ai"
 version = "1.0.0"
 description = "Chatbot em português com a Gemini API"
-requires-python = ">=3.10"
+requires-python = ">=3.12,<3.13"
 dependencies = [
-    "flet>=0.28.3,<1.0.0",
+    "flet[all]>=1.0.1,<2.0.0",
 ]
 
 [tool.flet]
