@@ -19,21 +19,28 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
 
-      - name: Build APK with Flet
-        id: build
-        uses: flet-dev/flet-build-action@v1
+      - name: Set up Python
+        uses: astral-sh/setup-uv@v6
         with:
-          target: apk
-          runner-python-version: "3.12"
-          bundled-python-version: "3.12"
-          build-number: ${{ github.run_number }}
-          cache: false
+          python-version: "3.12"
+          enable-cache: false
 
-      - name: Upload APK artifact
+      - name: Check Flet installation
+        run: uv run flet --version
+
+      - name: Build APK
+        run: |
+          uv run flet build apk \
+            --yes \
+            --verbose \
+            --output build/apk \
+            --python-version 3.12 \
+            --build-number ${{ github.run_number }}
+
+      - name: Upload APK
         uses: actions/upload-artifact@v7
         with:
           name: gcodscript-ai-apk
-          path: ${{ steps.build.outputs.archive-path }}
-          archive: false
+          path: build/apk/**/*.apk
           if-no-files-found: error
           retention-days: 7
