@@ -355,7 +355,21 @@ def main(page: ft.Page):
 
     send_button = ft.IconButton(
         icon=ft.Icons.SEND,
-        totton(
+        tooltip="Enviar mensagem",
+        on_click=ask_ai,
+    )
+
+    chat_view = ft.Column(
+        [
+            ft.Row(
+                [
+                    ft.Text(
+                        "Gcodscript AI",
+                        size=24,
+                        weight=ft.FontWeight.BOLD,
+                        expand=True,
+                    ),
+                    ft.IconButton(
                         icon=ft.Icons.ADD,
                         tooltip="Nova conversa",
                         on_click=new_chat,
@@ -421,7 +435,7 @@ def main(page: ft.Page):
             + code
         )
 
-        page.go("/chat")
+        show_view("chat")
 
     canvas_view = ft.Column(
         [
@@ -490,217 +504,48 @@ def main(page: ft.Page):
         expand=True,
     )
 
-    def route_change(e):
-        page.views.clear()
-        route = page.route or "/chat"
+    # =========================
+    # NAVEGAÇÃO ENTRE TELAS
+    # =========================
 
-        if route == "/canvas":
-            content = canvas_view
-        elif route == "/settings":
-            content = settings_view
+    body = ft.Container(content=chat_view, expand=True)
+
+    def show_view(name):
+        if name == "canvas":
+            body.content = canvas_view
+        elif name == "settings":
+            body.content = settings_view
         else:
-            content = chat_view
-
-        page.views.append(
-            ft.View(
-                route=route,
-                controls=[
-                    content,
-                    ft.Row(
-                        [
-                            ft.TextButton(
-                                "Chat",
-                                icon=ft.Icons.CHAT,
-                                on_click=lambda _: page.go("/chat"),
-                            ),
-                            ft.TextButton(
-                                "Canvas",
-                                icon=ft.Icons.CODE,
-                                on_click=lambda _: page.go("/canvas"),
-                            ),
-                            ft.TextButton(
-                                "Config",
-                                icon=ft.Icons.SETTINGS,
-                                on_click=lambda _: page.go("/settings"),
-                            ),
-                        ],
-                        alignment=ft.MainAxisAlignment.SPACE_AROUND,
-                    ),
-                ],
-                padding=12,
-            )
-        )
+            body.content = chat_view
 
         page.update()
 
-    page.on_route_change = route_change
-    page.go("/chat")
+    nav_row = ft.Row(
+        [
+            ft.TextButton(
+                "Chat",
+                icon=ft.Icons.CHAT,
+                on_click=lambda _: show_view("chat"),
+            ),
+            ft.TextButton(
+                "Canvas",
+                icon=ft.Icons.CODE,
+                on_click=lambda _: show_view("canvas"),
+            ),
+            ft.TextButton(
+                "Config",
+                icon=ft.Icons.SETTINGS,
+                on_click=lambda _: show_view("settings"),
+            ),
+        ],
+        alignment=ft.MainAxisAlignment.SPACE_AROUND,
+    )
+
+    page.add(body, nav_row)
     redraw_chat()
 
 
-ft.app(target=main)
-          ]
-            ),
-            ft.Divider(),
-            chat_column,
-            ft.Row([prompt_field, send_button]),
-            status,
-        ],
-        expand=True,
-    )
-
-    filename_field = ft.TextField(
-        label="Nome do arquivo",
-        value="script.py",
-    )
-
-    canvas_text = ft.TextField(
-        label="Editor de código",
-        multiline=True,
-        min_lines=15,
-        max_lines=30,
-        expand=True,
-        text_size=13,
-    )
-
-    def save_code(e=None):
-        name = os.path.basename(
-            (filename_field.value or "script.py").strip()
-        ) or "script.py"
-
-        destination = APP_DIR / name
-        destination.write_text(
-            canvas_text.value or "",
-            encoding="utf-8",
-        )
-
-        status.value = f"Arquivo salvo em: {destination}"
-        page.update()
-
-    def analyze_code(e=None):
-        code = canvas_text.value or ""
-
-        if not code.strip():
-            status.value = "Digite ou cole um código primeiro."
-            page.update()
-            return
-
-        prompt_field.value = (
-            "Analise este código, encontre erros e sugira melhorias:\n\n"
-            + code
-        )
-
-        page.go("/chat")
-
-    canvas_view = ft.Column(
-        [
-            ft.Text(
-                "Canvas de código",
-                size=22,
-                weight=ft.FontWeight.BOLD,
-            ),
-            filename_field,
-            canvas_text,
-            ft.Row(
-                [
-                    ft.ElevatedButton(
-                        "Salvar arquivo",
-                        icon=ft.Icons.SAVE,
-                        on_click=save_code,
-                    ),
-                    ft.ElevatedButton(
-                        "Analisar com IA",
-                        icon=ft.Icons.CODE,
-                        on_click=analyze_code,
-                    ),
-                ],
-                wrap=True,
-            ),
-        ],
-        expand=True,
-    )
-
-    settings_view = ft.Column(
-        [
-            ft.Text(
-                "Configurações",
-                size=22,
-                weight=ft.FontWeight.BOLD,
-            ),
-            api_key,
-            model_dropdown,
-            ft.Text(
-                "Escolha um modelo de texto. "
-                "Alguns modelos podem exigir acesso específico."
-            ),
-            mode,
-            local_url,
-            local_model,
-            ft.Text(
-                "O modo Local exige um servidor de IA local ativo. "
-                "Ele não instala nem baixa modelos automaticamente."
-            ),
-            ft.ElevatedButton(
-                "Salvar configurações",
-                icon=ft.Icons.SAVE,
-                on_click=save_settings,
-            ),
-            ft.Text(
-                f"Pasta de dados: {APP_DIR}",
-                selectable=True,
-                size=12,
-            ),
-        ],
-        scroll=ft.ScrollMode.AUTO,
-        expand=True,
-    )
-
-    def route_change(e):
-        page.views.clear()
-        route = page.route or "/chat"
-
-        if route == "/canvas":
-            content = canvas_view
-        elif route == "/settings":
-            content = settings_view
-        else:
-            content = chat_view
-
-        page.views.append(
-            ft.View(
-                route=route,
-                controls=[
-                    content,
-                    ft.Row(
-                        [
-                            ft.TextButton(
-                                "Chat",
-                                icon=ft.Icons.CHAT,
-                                on_click=lambda _: page.go("/chat"),
-                            ),
-                            ft.TextButton(
-                                "Canvas",
-                                icon=ft.Icons.CODE,
-                                on_click=lambda _: page.go("/canvas"),
-                            ),
-                            ft.TextButton(
-                                "Config",
-                                icon=ft.Icons.SETTINGS,
-                                on_click=lambda _: page.go("/settings"),
-                            ),
-                        ],
-                        alignment=ft.MainAxisAlignment.SPACE_AROUND,
-                    ),
-                ],
-                padding=12,
-            )
-        )
-
-        page.update()
-
-    page.on_route_change = route_change
-    page.go("/chat")
-    redraw_chat()
-
-
-ft.app(target=main)
+if hasattr(ft, "run"):
+    ft.run(main)
+else:
+    ft.app(target=main)
