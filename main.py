@@ -1,6 +1,7 @@
 import flet as ft
 import json
 import os
+import tempfile
 import urllib.request
 import urllib.error
 from pathlib import Path
@@ -9,8 +10,33 @@ from pathlib import Path
 # CONFIGURAÇÃO DO APLICATIVO
 # =========================
 
-APP_DIR = Path.home() / ".gcodscript_ai"
-APP_DIR.mkdir(parents=True, exist_ok=True)
+
+def get_app_dir():
+    """Escolhe uma pasta onde o app realmente consegue gravar."""
+    candidates = []
+
+    # Pasta de dados própria do app (Android/iOS), definida pelo Flet
+    storage = os.getenv("FLET_APP_STORAGE_DATA")
+    if storage:
+        candidates.append(Path(storage) / "gcodscript_ai")
+
+    # Desktop / testes no computador
+    candidates.append(Path.home() / ".gcodscript_ai")
+
+    # Último recurso: pasta temporária
+    candidates.append(Path(tempfile.gettempdir()) / "gcodscript_ai")
+
+    for folder in candidates:
+        try:
+            folder.mkdir(parents=True, exist_ok=True)
+            return folder
+        except OSError:
+            continue
+
+    return Path(tempfile.gettempdir())
+
+
+APP_DIR = get_app_dir()
 
 SETTINGS_FILE = APP_DIR / "settings.json"
 HISTORY_FILE = APP_DIR / "history.json"
@@ -46,8 +72,12 @@ def load_json(path, default):
 
 
 def save_json(path, data):
-    with open(path, "w", encoding="utf-8") as file:
-        json.dump(data, file, ensure_ascii=False, indent=2)
+    try:
+        with open(path, "w", encoding="utf-8") as file:
+            json.dump(data, file, ensure_ascii=False, indent=2)
+    except OSError:
+        # Se não for possível gravar, o app continua funcionando
+        pass
 
 
 settings = load_json(SETTINGS_FILE, DEFAULT_SETTINGS)
@@ -414,12 +444,15 @@ def main(page: ft.Page):
 
         destination = APP_DIR / name
 
-        destination.write_text(
-            canvas_text.value or "",
-            encoding="utf-8",
-        )
+        try:
+            destination.write_text(
+                canvas_text.value or "",
+                encoding="utf-8",
+            )
+            status.value = f"Arquivo salvo em: {destination}"
+        except OSError as error:
+            status.value = f"Não foi possível salvar: {error}"
 
-        status.value = f"Arquivo salvo em: {destination}"
         page.update()
 
     def analyze_code(e=None):
