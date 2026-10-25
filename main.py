@@ -1,4 +1,3 @@
-
 import flet as ft
 import json
 import os
@@ -32,6 +31,11 @@ DEFAULT_SETTINGS = {
     "local_model": "local-model",
 }
 
+# Compatível com versões diferentes do Flet
+DropdownOption = getattr(ft, "DropdownOption", None)
+if DropdownOption is None:
+    DropdownOption = ft.dropdown.Option
+
 
 def load_json(path, default):
     try:
@@ -48,6 +52,9 @@ def save_json(path, data):
 
 settings = load_json(SETTINGS_FILE, DEFAULT_SETTINGS)
 history = load_json(HISTORY_FILE, [])
+
+if not isinstance(settings, dict):
+    settings = DEFAULT_SETTINGS.copy()
 
 if not isinstance(history, list):
     history = []
@@ -111,6 +118,8 @@ def main(page: ft.Page):
 
     current_chat = len(history) - 1
 
+    # ---------- Campos de configuração ----------
+
     api_key = ft.TextField(
         label="Chave da API Gemini",
         value=settings.get("api_key", ""),
@@ -122,7 +131,7 @@ def main(page: ft.Page):
         label="Modelo Gemini",
         value=settings.get("model", "gemini-2.5-flash"),
         options=[
-            ft.dropdown.Option(key=model_id, text=label)
+            DropdownOption(key=model_id, text=label)
             for label, model_id in GEMINI_MODELS.items()
         ],
     )
@@ -131,8 +140,8 @@ def main(page: ft.Page):
         label="Modo de funcionamento",
         value=settings.get("mode", "Online"),
         options=[
-            ft.dropdown.Option("Online"),
-            ft.dropdown.Option("Local"),
+            DropdownOption(key="Online", text="Online"),
+            DropdownOption(key="Local", text="Local"),
         ],
     )
 
@@ -145,6 +154,8 @@ def main(page: ft.Page):
         label="Nome do modelo local",
         value=settings.get("local_model", "local-model"),
     )
+
+    # ---------- Chat ----------
 
     prompt_field = ft.TextField(
         hint_text="Digite sua mensagem...",
@@ -222,9 +233,7 @@ def main(page: ft.Page):
 
     def save_settings(e=None):
         settings["api_key"] = (api_key.value or "").strip()
-        settings["model"] = (
-            model_dropdown.value or "gemini-2.5-flash"
-        )
+        settings["model"] = model_dropdown.value or "gemini-2.5-flash"
         settings["mode"] = mode_dropdown.value or "Online"
         settings["local_url"] = (local_url.value or "").strip()
         settings["local_model"] = (
@@ -259,7 +268,7 @@ def main(page: ft.Page):
 
         try:
             if settings.get("mode") == "Local":
-                # Precisa de um servidor local compatível com OpenAI API.
+                # Precisa de um servidor local compatível com a API da OpenAI.
                 result = http_post(
                     settings["local_url"],
                     {
@@ -280,9 +289,7 @@ def main(page: ft.Page):
                         "Abra Config e informe sua chave da API Gemini."
                     )
 
-                model_name = settings.get(
-                    "model", "gemini-2.5-flash"
-                )
+                model_name = settings.get("model", "gemini-2.5-flash")
 
                 url = (
                     "https://generativelanguage.googleapis.com/"
@@ -293,11 +300,7 @@ def main(page: ft.Page):
                 contents = []
 
                 for message in history[current_chat]["messages"]:
-                    role = (
-                        "user"
-                        if message["role"] == "user"
-                        else "model"
-                    )
+                    role = "user" if message["role"] == "user" else "model"
 
                     contents.append({
                         "role": role,
@@ -352,21 +355,7 @@ def main(page: ft.Page):
 
     send_button = ft.IconButton(
         icon=ft.Icons.SEND,
-        tooltip="Enviar mensagem",
-        on_click=ask_ai,
-    )
-
-    chat_view = ft.Column(
-        [
-            ft.Row(
-                [
-                    ft.Text(
-                        "Gcodscript AI",
-                        size=24,
-                        weight=ft.FontWeight.BOLD,
-                        expand=True,
-                    ),
-                    ft.IconButton(
+        totton(
                         icon=ft.Icons.ADD,
                         tooltip="Nova conversa",
                         on_click=new_chat,
