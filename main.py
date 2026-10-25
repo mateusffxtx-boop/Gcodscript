@@ -1,3 +1,4 @@
+
 import flet as ft
 import json
 import os
@@ -10,20 +11,15 @@ from pathlib import Path
 # CONFIGURAÇÃO DO APLICATIVO
 # =========================
 
-
 def get_app_dir():
-    """Escolhe uma pasta onde o app realmente consegue gravar."""
+    """Escolhe uma pasta onde o app consegue gravar."""
     candidates = []
 
-    # Pasta de dados própria do app (Android/iOS), definida pelo Flet
     storage = os.getenv("FLET_APP_STORAGE_DATA")
     if storage:
         candidates.append(Path(storage) / "gcodscript_ai")
 
-    # Desktop / testes no computador
     candidates.append(Path.home() / ".gcodscript_ai")
-
-    # Último recurso: pasta temporária
     candidates.append(Path(tempfile.gettempdir()) / "gcodscript_ai")
 
     for folder in candidates:
@@ -37,7 +33,6 @@ def get_app_dir():
 
 
 APP_DIR = get_app_dir()
-
 SETTINGS_FILE = APP_DIR / "settings.json"
 HISTORY_FILE = APP_DIR / "history.json"
 
@@ -57,7 +52,6 @@ DEFAULT_SETTINGS = {
     "local_model": "local-model",
 }
 
-# Compatível com versões diferentes do Flet
 DropdownOption = getattr(ft, "DropdownOption", None)
 if DropdownOption is None:
     DropdownOption = ft.dropdown.Option
@@ -76,7 +70,6 @@ def save_json(path, data):
         with open(path, "w", encoding="utf-8") as file:
             json.dump(data, file, ensure_ascii=False, indent=2)
     except OSError:
-        # Se não for possível gravar, o app continua funcionando
         pass
 
 
@@ -94,15 +87,12 @@ if settings.get("model") not in GEMINI_MODELS.values():
 
 
 # =========================
-# REQUISIÇÕES SEM REQUESTS
+# REQUISIÇÕES HTTP
 # =========================
 
 def http_post(url, payload, headers=None, timeout=120):
     body = json.dumps(payload).encode("utf-8")
-
-    request_headers = {
-        "Content-Type": "application/json",
-    }
+    request_headers = {"Content-Type": "application/json"}
 
     if headers:
         request_headers.update(headers)
@@ -148,7 +138,7 @@ def main(page: ft.Page):
 
     current_chat = len(history) - 1
 
-    # ---------- Campos de configuração ----------
+    # ---------- Configurações ----------
 
     api_key = ft.TextField(
         label="Chave da API Gemini",
@@ -177,7 +167,10 @@ def main(page: ft.Page):
 
     local_url = ft.TextField(
         label="URL do servidor local",
-        value=settings.get("local_url", DEFAULT_SETTINGS["local_url"]),
+        value=settings.get(
+            "local_url",
+            DEFAULT_SETTINGS["local_url"],
+        ),
     )
 
     local_model = ft.TextField(
@@ -263,7 +256,9 @@ def main(page: ft.Page):
 
     def save_settings(e=None):
         settings["api_key"] = (api_key.value or "").strip()
-        settings["model"] = model_dropdown.value or "gemini-2.5-flash"
+        settings["model"] = (
+            model_dropdown.value or "gemini-2.5-flash"
+        )
         settings["mode"] = mode_dropdown.value or "Online"
         settings["local_url"] = (local_url.value or "").strip()
         settings["local_model"] = (
@@ -298,7 +293,6 @@ def main(page: ft.Page):
 
         try:
             if settings.get("mode") == "Local":
-                # Precisa de um servidor local compatível com a API da OpenAI.
                 result = http_post(
                     settings["local_url"],
                     {
@@ -319,7 +313,10 @@ def main(page: ft.Page):
                         "Abra Config e informe sua chave da API Gemini."
                     )
 
-                model_name = settings.get("model", "gemini-2.5-flash")
+                model_name = settings.get(
+                    "model",
+                    "gemini-2.5-flash",
+                )
 
                 url = (
                     "https://generativelanguage.googleapis.com/"
@@ -330,7 +327,11 @@ def main(page: ft.Page):
                 contents = []
 
                 for message in history[current_chat]["messages"]:
-                    role = "user" if message["role"] == "user" else "model"
+                    role = (
+                        "user"
+                        if message["role"] == "user"
+                        else "model"
+                    )
 
                     contents.append({
                         "role": role,
@@ -357,7 +358,11 @@ def main(page: ft.Page):
                         "Verifique o modelo e as permissões da sua chave."
                     )
 
-                parts = candidates[0].get("content", {}).get("parts", [])
+                parts = (
+                    candidates[0]
+                    .get("content", {})
+                    .get("parts", [])
+                )
 
                 answer = "\n".join(
                     part["text"]
@@ -481,13 +486,13 @@ def main(page: ft.Page):
             canvas_text,
             ft.Row(
                 [
-                    ft.ElevatedButton(
-                        "Salvar arquivo",
+                    ft.Button(
+                        content="Salvar arquivo",
                         icon=ft.Icons.SAVE,
                         on_click=save_code,
                     ),
-                    ft.ElevatedButton(
-                        "Analisar com IA",
+                    ft.Button(
+                        content="Analisar com IA",
                         icon=ft.Icons.CODE,
                         on_click=analyze_code,
                     ),
@@ -522,8 +527,8 @@ def main(page: ft.Page):
                 "O modo Local exige um servidor de IA local ativo. "
                 "Ele não instala nem baixa modelos automaticamente."
             ),
-            ft.ElevatedButton(
-                "Salvar configurações",
+            ft.Button(
+                content="Salvar configurações",
                 icon=ft.Icons.SAVE,
                 on_click=save_settings,
             ),
@@ -538,7 +543,7 @@ def main(page: ft.Page):
     )
 
     # =========================
-    # NAVEGAÇÃO ENTRE TELAS
+    # NAVEGAÇÃO
     # =========================
 
     body = ft.Container(content=chat_view, expand=True)
