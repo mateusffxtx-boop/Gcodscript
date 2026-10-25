@@ -27,6 +27,9 @@ jobs:
       - name: Check Flet installation
         run: uv run flet --version
 
+      - name: Check main.py syntax
+        run: uv run python -m py_compile main.py
+
       - name: Build APK
         run: |
           uv run flet build apk \
