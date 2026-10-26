@@ -1,47 +1,39 @@
 name: Build Android APK
-
-on:
-  push:
-    branches: [main]
-  workflow_dispatch:
-
-permissions:
-  contents: read
-
+on: [push]
 jobs:
-  build-apk:
-    name: Build Gcodscript AI APK
+  build:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
-
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v6
-
-      - name: Set up Python
-        uses: astral-sh/setup-uv@v6
+      - name: Checkout Code
+        uses: actions/checkout@v4
+      - name: Setup Java
+        uses: actions/setup-java@v4
         with:
-          python-version: "3.12"
-          enable-cache: false
-
-      - name: Check Flet installation
-        run: uv run flet --version
-
-      - name: Check main.py syntax
-        run: uv run python -m py_compile main.py
-
-      - name: Build APK
+          distribution: 'temurin'
+          java-version: '17'
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install Cordova / Capacitor CLI
+        run: npm install -g @capacitor/cli @capacitor/core
+      - name: Create App Project
         run: |
-          uv run flet build apk \
-            --yes \
-            --verbose \
-            --output build/apk \
-            --build-number ${{ github.run_number }}
-
-      - name: Upload APK
-        uses: actions/upload-artifact@v7
+          npx @capacitor/cli create myapp com.meuapp.midia myapp --web-dir .
+          cd myapp
+          npm install @capacitor/android
+          npx cap add android
+      - name: Inject MediaProjection Permissions
+        run: |
+          # Adiciona as permissoes necessarias no AndroidManifest automaticamente
+          MANIFEST="myapp/android/app/src/main/AndroidManifest.xml"
+          sed -i '/<uses-permission android:name="android.permission.INTERNET"/a \    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>\n    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION"/>' $MANIFEST
+      - name: Build APK via Gradle
+        run: |
+          cd myapp/android
+          ./gradlew assembleDebug
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
         with:
-          name: gcodscript-ai-apk
-          path: build/apk/**/*.apk
-          if-no-files-found: error
-          retention-days: 7
+          name: app-debug-apk
+          path: myapp/android/app/build/outputs/apk/debug/app-debug.apk
